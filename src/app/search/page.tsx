@@ -13,6 +13,8 @@ type Hit = {
   image_url: string | null;
 };
 
+type SearchResponse = { results?: Hit[] };
+
 export default function SearchPage() {
   const [url, setUrl] = useState("https://picsum.photos/seed/999/600/800.jpg");
   const [file, setFile] = useState<File | null>(null);
@@ -21,12 +23,12 @@ export default function SearchPage() {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<Hit[]>([]);
 
-  // Debug: zeigt die verwendete API-Basis in der Browser-Konsole
-  if (typeof window !== "undefined") {
-    console.log("API_BASE:", process.env.NEXT_PUBLIC_API_BASE);
-  }
+  // Debug optional:
+  // if (typeof window !== "undefined") {
+  //   console.log("API_BASE:", process.env.NEXT_PUBLIC_API_BASE);
+  // }
 
-  const runSearchByUrl = async () => {
+  const runSearchByUrl = async (): Promise<SearchResponse> => {
     const form = new URLSearchParams();
     form.set("image_url", url);
     form.set("topk", String(topk));
@@ -43,10 +45,10 @@ export default function SearchPage() {
     return res.json();
   };
 
-  const runSearchByUpload = async () => {
+  const runSearchByUpload = async (): Promise<SearchResponse> => {
     if (!file) throw new Error("Bitte zuerst eine Bilddatei auswählen.");
     const form = new FormData();
-    form.set("file", file);      // ⚠️ Feldname muss 'file' heißen (API erwartet das)
+    form.set("file", file); // Feldname muss 'file' heißen
     form.set("topk", String(topk));
 
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/search/by-upload`, {
@@ -62,14 +64,15 @@ export default function SearchPage() {
 
   const handleSubmitUrl = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null); setLoading(true); setResults([]);
+    setError(null);
+    setLoading(true);
+    setResults([]);
     try {
       const data = await runSearchByUrl();
-      setResults(data?.results ?? []);
+      setResults(Array.isArray(data.results) ? data.results : []);
     } catch (err: unknown) {
-  const msg = err instanceof Error ? err.message : String(err);
-  setError(msg || "Fehler bei der Suche");
-    }
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg || "Fehler bei der URL-Suche");
     } finally {
       setLoading(false);
     }
@@ -77,14 +80,15 @@ export default function SearchPage() {
 
   const handleSubmitUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null); setLoading(true); setResults([]);
+    setError(null);
+    setLoading(true);
+    setResults([]);
     try {
       const data = await runSearchByUpload();
-      setResults(data?.results ?? []);
-    catch (err: unknown) {
-  const msg = err instanceof Error ? err.message : String(err);
-  setError(msg || "Fehler bei der Suche");
-}
+      setResults(Array.isArray(data.results) ? data.results : []);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg || "Fehler bei der Upload-Suche");
     } finally {
       setLoading(false);
     }
@@ -174,6 +178,7 @@ export default function SearchPage() {
           {results.map((r) => (
             <li key={r.product_id} className="flex gap-4 rounded-2xl border p-4">
               {r.image_url ? (
+                // Hinweis: <img> erzeugt nur eine Lint-Warnung, kein Build-Fehler
                 <img
                   src={r.image_url}
                   alt={r.title ?? `Produkt ${r.product_id}`}
@@ -199,7 +204,7 @@ export default function SearchPage() {
                 </div>
                 <div className="mt-1 text-sm text-gray-600">
                   {r.merchant ? `${r.merchant} • ` : ""}
-                  {r.price?.toFixed(2)} {r.currency ?? ""}
+                  {typeof r.price === "number" ? r.price.toFixed(2) : r.price} {r.currency ?? ""}
                 </div>
                 <div className="mt-2 text-sm text-gray-500">Score: {r.score.toFixed(3)}</div>
                 {r.deeplink && (
