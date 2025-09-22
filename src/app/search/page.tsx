@@ -66,8 +66,10 @@ export default function SearchPage() {
     try {
       const data = await runSearchByUrl();
       setResults(data?.results ?? []);
-    } catch (err: any) {
-      setError(err.message || "Fehler bei der URL-Suche");
+    } catch (err: unknown) {
+  const msg = err instanceof Error ? err.message : String(err);
+  setError(msg || "Fehler bei der Suche");
+    }
     } finally {
       setLoading(false);
     }
@@ -79,8 +81,10 @@ export default function SearchPage() {
     try {
       const data = await runSearchByUpload();
       setResults(data?.results ?? []);
-    } catch (err: any) {
-      setError(err.message || "Fehler bei der Upload-Suche");
+    catch (err: unknown) {
+  const msg = err instanceof Error ? err.message : String(err);
+  setError(msg || "Fehler bei der Suche");
+}
     } finally {
       setLoading(false);
     }
