@@ -45,22 +45,34 @@ export default function SearchPage() {
     return res.json();
   };
 
-  const runSearchByUpload = async (): Promise<SearchResponse> => {
-    if (!file) throw new Error("Bitte zuerst eine Bilddatei auswählen.");
-    const form = new FormData();
-    form.set("file", file); // Feldname muss 'file' heißen
-    form.set("topk", String(topk));
+const runSearchByUpload = async (): Promise<SearchResponse> => {
+  if (!file) throw new Error("Bitte zuerst eine Bilddatei auswählen.");
 
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/search/by-upload`, {
-      method: "POST",
-      body: form,
-    });
-    if (!res.ok) {
-      const txt = await res.text();
-      throw new Error(`${res.status} ${res.statusText} – ${txt}`);
+  const form = new FormData();
+  form.set("file", file);
+  form.set("topk", String(topk));
+
+  const base = process.env.NEXT_PUBLIC_API_BASE;
+  if (!base) throw new Error("NEXT_PUBLIC_API_BASE fehlt.");
+
+  const candidates = ["/search/by-upload", "/search/image"]; // Fallback-Reihenfolge
+
+  let lastText = "";
+  for (const path of candidates) {
+    const res = await fetch(`${base}${path}`, { method: "POST", body: form });
+    if (res.ok) {
+      return res.json();
     }
-    return res.json();
-  };
+    // wenn 404: nächsten Kandidaten probieren
+    lastText = await res.text().catch(() => "");
+    if (res.status !== 404) {
+      throw new Error(`${res.status} ${res.statusText} – ${lastText}`);
+    }
+  }
+
+  throw new Error(`Kein Upload-Endpoint gefunden (404). Letzte Antwort: ${lastText}`);
+};
+
 
   const handleSubmitUrl = async (e: React.FormEvent) => {
     e.preventDefault();
