@@ -1,42 +1,52 @@
+@import "tailwindcss";
+
+/* === Theme-Variablen === */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fafafa;
+  --foreground: #111827;
 }
-
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  :root { --background: #0a0a0a; --foreground: #e5e7eb; }
 }
 
-html,
-body {
+/* === Base === */
+html, body {
   max-width: 100vw;
   overflow-x: hidden;
-}
-
-body {
-  color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--foreground);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
+/* WICHTIG: kein globales margin/padding-Reset!
+   Nur Box-Sizing setzen, damit Tailwind mx-auto etc. wirken kann. */
+*, *::before, *::after { box-sizing: border-box; }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
+a { color: inherit; text-decoration: none; }
 
 @media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
+  html { color-scheme: dark; }
 }
+
+/* Bessere Focus-Visibility */
+:focus-visible { outline: 2px solid #111827; outline-offset: 2px; }
+
+/* === React Image Crop Styling === */
+.ReactCrop__crop-selection { border: 2px solid #111; }
+
+.ReactCrop__drag-handle {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  border: 2px solid #111;
+  background: #fff;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.08);
+}
+
+.ReactCrop__drag-handle--n,
+.ReactCrop__drag-handle--s { width: 28px; height: 12px; }
+
+.ReactCrop__drag-handle--e,
+.ReactCrop__drag-handle--w { width: 12px; height: 28px; }
+
