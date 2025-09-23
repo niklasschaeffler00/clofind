@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactCrop, { type Crop, type PixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
@@ -45,22 +44,18 @@ const fmtPrice = (value?: number, currency = 'EUR', locale = 'de-DE') =>
     ? new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 2 }).format(value)
     : '';
 
-/* ---------------- Tiny Toaster (ohne ts-ignore) ---------------- */
+/* ---------------- Tiny Toaster ---------------- */
 
 function useToaster() {
   const [msg, setMsg] = useState<string | null>(null);
   const [type, setType] = useState<'ok' | 'err' | 'info'>('info');
-  const timerRef = useRef<number | null>(null);
-
   const show = useCallback((m: string, t: 'ok' | 'err' | 'info' = 'info', ms = 2200) => {
-    setMsg(m);
-    setType(t);
-    if (timerRef.current !== null) {
-      window.clearTimeout(timerRef.current);
-    }
-    timerRef.current = window.setTimeout(() => setMsg(null), ms);
+    setMsg(m); setType(t);
+    // @ts-ignore
+    window.clearTimeout(show._t);
+    // @ts-ignore
+    show._t = window.setTimeout(() => setMsg(null), ms);
   }, []);
-
   return { msg, type, show };
 }
 function Toast({ msg, type }: { msg: string; type: 'ok' | 'err' | 'info' }) {
@@ -99,6 +94,15 @@ export default function UploadPage() {
   const [sortBy, setSortBy] = useState<SortKey>('relevance');
   const [visibleCount, setVisibleCount] = useState(12);
 
+  // Filter
+  type LabelBucket = 'Exact' | 'Sehr ähnlich' | 'Alternative';
+  const [labelFilter, setLabelFilter] = useState<Record<LabelBucket, boolean>>({
+    Exact: true, 'Sehr ähnlich': true, Alternative: true,
+  });
+  const [priceMin, setPriceMin] = useState<string>(''); // Text erlaubt leer
+  const [priceMax, setPriceMax] = useState<string>('');
+  const [merchantSearch, setMerchantSearch] = useState<string>('');
+
   // Persistente Preview + letzter Crop
   const [cropPreviewUrl, setCropPreviewUrl] = useState<string | null>(null);
   const [lastCropBlob, setLastCropBlob] = useState<Blob | null>(null);
@@ -117,10 +121,7 @@ export default function UploadPage() {
   async function handleFiles(files: FileList | null) {
     const f = files?.[0] ?? null;
     if (!f) return;
-    if (!f.type.startsWith('image/')) {
-      toast.show('Bitte ein Bild auswählen.', 'err');
-      return;
-    }
+    if (!f.type.startsWith('image/')) { toast.show('Bitte ein Bild auswählen.', 'err'); return; }
 
     if (originalUrl) URL.revokeObjectURL(originalUrl);
     if (cropPreviewUrl) URL.revokeObjectURL(cropPreviewUrl);
@@ -135,16 +136,14 @@ export default function UploadPage() {
     setCrop({ unit: '%', x: 12, y: 12, width: 76, height: 76 });
     setLastCropBlob(null);
     setCropPreviewUrl(null);
+    // Filter zurücksetzen
+    setLabelFilter({ Exact: true, 'Sehr ähnlich': true, Alternative: true });
+    setPriceMin(''); setPriceMax(''); setMerchantSearch('');
     setModalOpen(true);
   }
 
-  const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    handleFiles(e.dataTransfer.files);
-  };
-  const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-  };
+  const onDrop = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); handleFiles(e.dataTransfer.files); };
+  const onDragOver = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); };
 
   /* --------- Suche --------- */
 
@@ -167,7 +166,7 @@ export default function UploadPage() {
     throw new Error(`Kein Upload-Endpoint gefunden (404). Letzte Antwort: ${lastText}`);
   }
 
-  const confirmAndSearch = useCallback(async () => {
+  async function confirmAndSearch() {
     if (!file || !imgRef.current || !crop) return;
     try {
       setLoading(true);
@@ -192,16 +191,15 @@ export default function UploadPage() {
       setEditInline(false);
       if (!hits.length) toast.show('Keine Treffer gefunden.', 'info');
       else toast.show(`${hits.length} Treffer gefunden.`, 'ok');
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setError(msg);
-      toast.show(msg, 'err', 2600);
+    } catch (e: any) {
+      const msg = e?.message || 'Fehler bei der Suche';
+      setError(msg); toast.show(msg, 'err', 2600);
     } finally {
       setLoading(false);
     }
-  }, [file, crop, cropPreviewUrl, toast]);
+  }
 
-  const resubmitWithSameCrop = useCallback(async () => {
+  async function resubmitWithSameCrop() {
     if (!file) return;
     try {
       setLoading(true);
@@ -211,19 +209,18 @@ export default function UploadPage() {
       const data = await runSearchByUpload(payload);
       setResults(Array.isArray(data.results) ? data.results : []);
       setVisibleCount(12);
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setError(msg);
-      toast.show(msg, 'err');
+    } catch (e: any) {
+      setError(e?.message || 'Fehler bei der Suche');
+      toast.show(e?.message || 'Fehler bei der Suche', 'err');
     } finally {
       setLoading(false);
     }
-  }, [file, lastCropBlob, toast]);
+  }
 
-  const applyInlineAndSearch = useCallback(async () => {
+  async function applyInlineAndSearch() {
     if (!file || !imgRef.current || !crop) return;
     await confirmAndSearch();
-  }, [file, crop, confirmAndSearch]);
+  }
 
   /* --------- Shortcuts --------- */
 
@@ -235,34 +232,83 @@ export default function UploadPage() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [modalOpen, confirmAndSearch]);
+  }, [modalOpen, file, crop]);
 
-  /* --------- Sort & Pagination --------- */
+  /* --------- Dedupe + Sort + Filter + Pagination --------- */
 
+  // 1) Duplikate entfernen (stabil)
+  const dedupedResults = useMemo(() => {
+    const seen = new Set<string>();
+    return results.filter((h) => {
+      const id = `${h.product_id}-${h.deeplink ?? ''}-${h.image_url ?? ''}`;
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }, [results]);
+
+  // 2) Sortierung
   const sortedResults = useMemo(() => {
-    const arr = [...results];
+    const arr = [...dedupedResults];
     switch (sortBy) {
       case 'priceAsc':
-        arr.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
-        break;
+        arr.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity)); break;
       case 'priceDesc':
-        arr.sort((a, b) => (b.price ?? -Infinity) - (a.price ?? -Infinity));
-        break;
+        arr.sort((a, b) => (b.price ?? -Infinity) - (a.price ?? -Infinity)); break;
       case 'scoreDesc':
-        arr.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-        break;
+        arr.sort((a, b) => (b.score ?? 0) - (a.score ?? 0)); break;
       case 'scoreAsc':
-        arr.sort((a, b) => (a.score ?? 0) - (b.score ?? 0));
-        break;
-      default:
-        // relevance = Backend-Reihenfolge
-        break;
+        arr.sort((a, b) => (a.score ?? 0) - (b.score ?? 0)); break;
+      default: /* relevance */ break;
     }
     return arr;
-  }, [results, sortBy]);
+  }, [dedupedResults, sortBy]);
 
-  const visibleResults = sortedResults.slice(0, visibleCount);
-  const canLoadMore = visibleCount < sortedResults.length;
+  // 3) Filter
+  const normalizeBucket = (lbl?: string): 'Exact' | 'Sehr ähnlich' | 'Alternative' =>
+    lbl === 'Exact' ? 'Exact' : lbl === 'Sehr ähnlich' ? 'Sehr ähnlich' : 'Alternative';
+
+  const filteredResults = useMemo(() => {
+    const min = priceMin !== '' ? parseFloat(priceMin) : undefined;
+    const max = priceMax !== '' ? parseFloat(priceMax) : undefined;
+    const merchantQ = merchantSearch.trim().toLowerCase();
+
+    return sortedResults.filter((r) => {
+      const bucket = labelFilter[normalizeBucket(r.label)] === true;
+      const okMin = min === undefined ? true : (r.price ?? Infinity) >= min;
+      const okMax = max === undefined ? true : (r.price ?? -Infinity) <= max;
+      const okMerchant = merchantQ === ''
+        ? true
+        : (r.merchant ?? '').toLowerCase().includes(merchantQ);
+      return bucket && okMin && okMax && okMerchant;
+    });
+  }, [sortedResults, labelFilter, priceMin, priceMax, merchantSearch]);
+
+  // 4) Sichtbar + Mehr laden
+  const visibleResults = filteredResults.slice(0, visibleCount);
+  const canLoadMore = visibleCount < filteredResults.length;
+
+  /* --------- Badges (UI) --------- */
+
+  const allLabelsSelected = Object.values(labelFilter).every(Boolean);
+  const selectedLabels = Object.entries(labelFilter)
+    .filter(([, v]) => v)
+    .map(([k]) => k)
+    .join(', ');
+
+  const activeBadgeLabels = !allLabelsSelected ? `Ähnlichkeit: ${selectedLabels}` : null;
+  const activeBadgePrice =
+    priceMin !== '' || priceMax !== '' ? `Preis: ${priceMin || '0'}–${priceMax || '∞'}` : null;
+  const activeBadgeMerchant =
+    merchantSearch.trim() ? `Händler: ${merchantSearch.trim()}` : null;
+
+  const anyActiveBadges = Boolean(activeBadgeLabels || activeBadgePrice || activeBadgeMerchant);
+
+  const clearLabels = () =>
+    setLabelFilter({ Exact: true, 'Sehr ähnlich': true, Alternative: true });
+  const clearPrice = () => { setPriceMin(''); setPriceMax(''); };
+  const clearMerchant = () => setMerchantSearch('');
+  const clearAllBadges = () => { clearLabels(); clearPrice(); clearMerchant(); };
 
   /* ---------------- Render ---------------- */
 
@@ -275,10 +321,10 @@ export default function UploadPage() {
       {/* NAVBAR */}
       <header className="sticky top-0 z-40 border-b bg-white/80 backdrop-blur">
         <div className="container mx-auto flex h-16 w-full max-w-screen-2xl items-center justify-between px-6">
-          <Link href="/" className="flex items-center gap-2 text-lg font-semibold">
+          <a href="/" className="flex items-center gap-2 text-lg font-semibold">
             <span>👕</span>
             <span>CloFind</span>
-          </Link>
+          </a>
           <button
             onClick={() => fileInputRef.current?.click()}
             className="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-900"
@@ -339,6 +385,7 @@ export default function UploadPage() {
         <main className="container mx-auto grid w-full max-w-screen-2xl grid-cols-1 gap-8 px-6 py-8 md:grid-cols-[320px_1fr] lg:grid-cols-[360px_1fr]">
           {/* LEFT SIDEBAR */}
           <aside className="md:sticky md:top-16">
+            {/* Crop-Panel */}
             <div className="rounded-2xl border bg-white/90 p-4 shadow-sm">
               <div className="text-sm font-medium text-gray-900">Gewählter Bereich</div>
 
@@ -370,11 +417,17 @@ export default function UploadPage() {
                       Erneut suchen
                     </button>
                   </div>
-            </div>
+                </div>
               ) : (
                 <div className="mt-3">
                   <div className="relative h-[360px] w-full overflow-auto rounded-xl border bg-gray-50">
-                    <ReactCrop crop={crop} onChange={(c) => setCrop(c)} keepSelection minWidth={10} minHeight={10}>
+                    <ReactCrop
+                      crop={crop}
+                      onChange={(c) => setCrop(c)}
+                      keepSelection
+                      minWidth={10}
+                      minHeight={10}
+                    >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         ref={imgRef}
@@ -402,21 +455,75 @@ export default function UploadPage() {
                   </div>
                 </div>
               )}
+            </div>
 
-              {/* Optionale Filter (Platzhalter – kann später ans Backend angebunden werden) */}
-              <div className="mt-6 border-t pt-4">
-                <div className="text-sm font-medium text-gray-900 mb-2">Filter</div>
-                <div className="space-y-2 text-sm text-gray-700">
-                  <label className="flex items-center gap-2">
-                    <input type="checkbox" className="accent-black" /> Tops
+            {/* Filter-Panel */}
+            <div className="mt-6 rounded-2xl border bg-white/90 p-4 shadow-sm">
+              <div className="text-sm font-medium text-gray-900">Filter</div>
+
+              {/* Ähnlichkeitsgrad */}
+              <div className="mt-3 space-y-2">
+                {(['Exact', 'Sehr ähnlich', 'Alternative'] as const).map((k) => (
+                  <label key={k} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={labelFilter[k]}
+                      onChange={(e) =>
+                        setLabelFilter((prev) => ({ ...prev, [k]: e.target.checked }))
+                      }
+                    />
+                    {k}
                   </label>
-                  <label className="flex items-center gap-2">
-                    <input type="checkbox" className="accent-black" /> Hosen
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input type="checkbox" className="accent-black" /> Schuhe
-                  </label>
+                ))}
+              </div>
+
+              {/* Preis */}
+              <div className="mt-4">
+                <div className="text-xs font-medium text-gray-700">Preis</div>
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="min"
+                    value={priceMin}
+                    onChange={(e) => setPriceMin(e.target.value)}
+                    className="w-24 rounded-lg border px-2 py-1 text-sm"
+                  />
+                  <span className="text-gray-500">–</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="max"
+                    value={priceMax}
+                    onChange={(e) => setPriceMax(e.target.value)}
+                    className="w-24 rounded-lg border px-2 py-1 text-sm"
+                  />
                 </div>
+              </div>
+
+              {/* Händler */}
+              <div className="mt-4">
+                <div className="text-xs font-medium text-gray-700">Händler</div>
+                <input
+                  type="text"
+                  placeholder="z. B. Zalando"
+                  value={merchantSearch}
+                  onChange={(e) => setMerchantSearch(e.target.value)}
+                  className="mt-2 w-full rounded-lg border px-3 py-1.5 text-sm"
+                />
+              </div>
+
+              {/* Reset */}
+              <div className="mt-4">
+                <button
+                  onClick={() => {
+                    setLabelFilter({ Exact: true, 'Sehr ähnlich': true, Alternative: true });
+                    setPriceMin(''); setPriceMax(''); setMerchantSearch('');
+                  }}
+                  className="rounded-xl border px-3 py-1.5 text-sm hover:bg-gray-50"
+                >
+                  Filter zurücksetzen
+                </button>
               </div>
             </div>
           </aside>
@@ -424,24 +531,75 @@ export default function UploadPage() {
           {/* RIGHT CONTENT */}
           <section>
             {/* Toolbar */}
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-gray-900">Ergebnisse</h2>
-              <div className="flex items-center gap-2">
-                <label htmlFor="sort" className="text-sm text-gray-600">
-                  Sortieren:
-                </label>
-                <select
-                  id="sort"
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as SortKey)}
-                  className="rounded-xl border px-3 py-1.5 text-sm"
-                >
-                  <option value="relevance">Relevanz</option>
-                  <option value="priceAsc">Preis: aufsteigend</option>
-                  <option value="priceDesc">Preis: absteigend</option>
-                  <option value="scoreDesc">Ähnlichkeit: hoch → niedrig</option>
-                  <option value="scoreAsc">Ähnlichkeit: niedrig → hoch</option>
-                </select>
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Ergebnisse{' '}
+                <span className="ml-2 text-sm font-normal text-gray-500">
+                  ({filteredResults.length} von {dedupedResults.length})
+                </span>
+              </h2>
+
+              <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-3">
+                {/* Badges */}
+                <div className="flex flex-wrap gap-2">
+                  {activeBadgeLabels && (
+                    <button
+                      onClick={clearLabels}
+                      className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs hover:bg-gray-50"
+                      title="Ähnlichkeit zurücksetzen"
+                    >
+                      {activeBadgeLabels}
+                      <span className="font-semibold">×</span>
+                    </button>
+                  )}
+                  {activeBadgePrice && (
+                    <button
+                      onClick={clearPrice}
+                      className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs hover:bg-gray-50"
+                      title="Preis-Filter entfernen"
+                    >
+                      {activeBadgePrice}
+                      <span className="font-semibold">×</span>
+                    </button>
+                  )}
+                  {activeBadgeMerchant && (
+                    <button
+                      onClick={clearMerchant}
+                      className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs hover:bg-gray-50"
+                      title="Händler-Filter entfernen"
+                    >
+                      {activeBadgeMerchant}
+                      <span className="font-semibold">×</span>
+                    </button>
+                  )}
+                  {anyActiveBadges && (
+                    <button
+                      onClick={clearAllBadges}
+                      className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs hover:bg-gray-50"
+                      title="Alle Filter entfernen"
+                    >
+                      Alle löschen
+                      <span className="font-semibold">×</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Sort */}
+                <div className="flex items-center gap-2">
+                  <label htmlFor="sort" className="text-sm text-gray-600">Sortieren:</label>
+                  <select
+                    id="sort"
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="rounded-xl border px-3 py-1.5 text-sm"
+                  >
+                    <option value="relevance">Relevanz</option>
+                    <option value="priceAsc">Preis: aufsteigend</option>
+                    <option value="priceDesc">Preis: absteigend</option>
+                    <option value="scoreDesc">Ähnlichkeit: hoch → niedrig</option>
+                    <option value="scoreAsc">Ähnlichkeit: niedrig → hoch</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -459,9 +617,9 @@ export default function UploadPage() {
             ) : visibleResults.length ? (
               <>
                 <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {visibleResults.map((r) => (
+                  {visibleResults.map((r, i) => (
                     <li
-                      key={r.product_id}
+                      key={`${r.product_id ?? 'p'}-${r.deeplink ?? r.image_url ?? i}`}
                       className="group rounded-2xl border bg-white p-4 shadow-sm transition hover:shadow-md"
                     >
                       <div className="aspect-[4/3] w-full overflow-hidden rounded-lg bg-gray-100">
@@ -529,7 +687,7 @@ export default function UploadPage() {
               </>
             ) : (
               <div className="rounded-xl border bg-white p-6 text-center text-gray-600">
-                Keine Ergebnisse. Probiere einen anderen Ausschnitt.
+                Keine Ergebnisse. Passe Filter oder Ausschnitt an.
               </div>
             )}
 
