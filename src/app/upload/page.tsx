@@ -5,7 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactCrop, { type Crop, type PixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 
-/* ---------------- Types (nur einmal global definieren!) ---------------- */
+/* ---------------- Types ---------------- */
+
 type Hit = {
   product_id: number;
   score: number;
@@ -19,10 +20,8 @@ type Hit = {
 };
 type SearchResponse = { results?: Hit[] };
 
-type SortKey = 'relevance' | 'priceAsc' | 'priceDesc' | 'scoreDesc' | 'scoreAsc';
-type LabelBucket = 'Exact' | 'Sehr ähnlich' | 'Alternative';
-
 /* ---------------- Helpers ---------------- */
+
 function toPixelCrop(c: Crop, img: HTMLImageElement): PixelCrop {
   const nw = img.naturalWidth, nh = img.naturalHeight, pct = c.unit === '%';
   const x = Math.round((pct ? (c.x ?? 0) / 100 : c.x ?? 0) * (pct ? nw : 1));
@@ -47,6 +46,7 @@ const fmtPrice = (value?: number, currency = 'EUR', locale = 'de-DE') =>
     : '';
 
 /* ---------------- Tiny Toaster (ohne ts-ignore) ---------------- */
+
 function useToaster() {
   const [msg, setMsg] = useState<string | null>(null);
   const [type, setType] = useState<'ok' | 'err' | 'info'>('info');
@@ -57,6 +57,8 @@ function useToaster() {
     if (timerRef.current) window.clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(() => setMsg(null), ms);
   }, []);
+
+  useEffect(() => () => { if (timerRef.current) window.clearTimeout(timerRef.current); }, []);
 
   return { msg, type, show };
 }
@@ -70,6 +72,7 @@ function Toast({ msg, type }: { msg: string; type: 'ok' | 'err' | 'info' }) {
 }
 
 /* ---------------- Page ---------------- */
+
 export default function UploadPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -77,10 +80,12 @@ export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
 
-  // Zuschneiden
+  // Zuschneiden (shared state)
   const imgRef = useRef<HTMLImageElement | null>(null);
   const [crop, setCrop] = useState<Crop | undefined>();
   const [modalOpen, setModalOpen] = useState(false);
+
+  // Inline-Edit links
   const [editInline, setEditInline] = useState(false);
 
   // Suche / Ergebnis
@@ -89,10 +94,12 @@ export default function UploadPage() {
   const [results, setResults] = useState<Hit[]>([]);
 
   // Sort / Pagination
+  type SortKey = 'relevance' | 'priceAsc' | 'priceDesc' | 'scoreDesc' | 'scoreAsc';
   const [sortBy, setSortBy] = useState<SortKey>('relevance');
   const [visibleCount, setVisibleCount] = useState(12);
 
   // Filter
+  type LabelBucket = 'Exact' | 'Sehr ähnlich' | 'Alternative';
   const [labelFilter, setLabelFilter] = useState<Record<LabelBucket, boolean>>({
     Exact: true, 'Sehr ähnlich': true, Alternative: true,
   });
@@ -100,7 +107,7 @@ export default function UploadPage() {
   const [priceMax, setPriceMax] = useState<string>('');
   const [merchantSearch, setMerchantSearch] = useState<string>('');
 
-  // Preview + letzter Crop
+  // Persistente Preview + letzter Crop
   const [cropPreviewUrl, setCropPreviewUrl] = useState<string | null>(null);
   const [lastCropBlob, setLastCropBlob] = useState<Blob | null>(null);
 
@@ -114,7 +121,8 @@ export default function UploadPage() {
   }, [originalUrl, cropPreviewUrl]);
 
   /* --------- Upload --------- */
-  const handleFiles = useCallback((files: FileList | null) => {
+
+  async function handleFiles(files: FileList | null) {
     const f = files?.[0] ?? null;
     if (!f) return;
     if (!f.type.startsWith('image/')) { toast.show('Bitte ein Bild auswählen.', 'err'); return; }
@@ -135,12 +143,13 @@ export default function UploadPage() {
     setLabelFilter({ Exact: true, 'Sehr ähnlich': true, Alternative: true });
     setPriceMin(''); setPriceMax(''); setMerchantSearch('');
     setModalOpen(true);
-  }, [cropPreviewUrl, originalUrl, toast]);
+  }
 
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); handleFiles(e.dataTransfer.files); };
   const onDragOver = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); };
 
   /* --------- Suche --------- */
+
   const runSearchByUpload = useCallback(async (blobOrFile: Blob | File): Promise<SearchResponse> => {
     const form = new FormData();
     form.set('file', blobOrFile);
@@ -183,16 +192,17 @@ export default function UploadPage() {
       setResults(hits);
       setModalOpen(false);
       setEditInline(false);
-      toast.show(hits.length ? `${hits.length} Treffer gefunden.` : 'Keine Treffer gefunden.', hits.length ? 'ok' : 'info');
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Fehler bei der Suche';
+      if (!hits.length) toast.show('Keine Treffer gefunden.', 'info');
+      else toast.show(`${hits.length} Treffer gefunden.`, 'ok');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
       setError(msg); toast.show(msg, 'err', 2600);
     } finally {
       setLoading(false);
     }
-  }, [crop, cropPreviewUrl, file, runSearchByUpload, toast]);
+  }, [file, crop, cropPreviewUrl, runSearchByUpload, toast]);
 
-  const resubmitWithSameCrop = useCallback(async () => {
+  async function resubmitWithSameCrop() {
     if (!file) return;
     try {
       setLoading(true);
@@ -202,31 +212,34 @@ export default function UploadPage() {
       const data = await runSearchByUpload(payload);
       setResults(Array.isArray(data.results) ? data.results : []);
       setVisibleCount(12);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Fehler bei der Suche';
-      setError(msg); toast.show(msg, 'err');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+      toast.show(msg, 'err');
     } finally {
       setLoading(false);
     }
-  }, [file, lastCropBlob, runSearchByUpload, toast]);
+  }
 
-  const applyInlineAndSearch = useCallback(async () => {
+  async function applyInlineAndSearch() {
     if (!file || !imgRef.current || !crop) return;
     await confirmAndSearch();
-  }, [confirmAndSearch, crop, file]);
+  }
 
   /* --------- Shortcuts --------- */
+
   useEffect(() => {
     if (!modalOpen) return;
     const onKey = (ev: KeyboardEvent) => {
       if (ev.key === 'Escape') setModalOpen(false);
-      if (ev.key === 'Enter') confirmAndSearch();
+      if (ev.key === 'Enter') void confirmAndSearch();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [modalOpen, confirmAndSearch]);
 
   /* --------- Dedupe + Sort + Filter + Pagination --------- */
+
   const dedupedResults = useMemo(() => {
     const seen = new Set<string>();
     return results.filter((h) => {
@@ -240,16 +253,20 @@ export default function UploadPage() {
   const sortedResults = useMemo(() => {
     const arr = [...dedupedResults];
     switch (sortBy) {
-      case 'priceAsc':  arr.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity)); break;
-      case 'priceDesc': arr.sort((a, b) => (b.price ?? -Infinity) - (a.price ?? -Infinity)); break;
-      case 'scoreDesc': arr.sort((a, b) => (b.score ?? 0) - (a.score ?? 0)); break;
-      case 'scoreAsc':  arr.sort((a, b) => (a.score ?? 0) - (b.score ?? 0)); break;
-      default: break; // relevance
+      case 'priceAsc':
+        arr.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity)); break;
+      case 'priceDesc':
+        arr.sort((a, b) => (b.price ?? -Infinity) - (a.price ?? -Infinity)); break;
+      case 'scoreDesc':
+        arr.sort((a, b) => (b.score ?? 0) - (a.score ?? 0)); break;
+      case 'scoreAsc':
+        arr.sort((a, b) => (a.score ?? 0) - (b.score ?? 0)); break;
+      default: break; // relevance = Server-Reihenfolge
     }
     return arr;
   }, [dedupedResults, sortBy]);
 
-  const normalizeBucket = (lbl?: string): LabelBucket =>
+  const normalizeBucket = (lbl?: string): 'Exact' | 'Sehr ähnlich' | 'Alternative' =>
     lbl === 'Exact' ? 'Exact' : lbl === 'Sehr ähnlich' ? 'Sehr ähnlich' : 'Alternative';
 
   const filteredResults = useMemo(() => {
@@ -269,7 +286,20 @@ export default function UploadPage() {
   const visibleResults = filteredResults.slice(0, visibleCount);
   const canLoadMore = visibleCount < filteredResults.length;
 
+  const allLabelsSelected = Object.values(labelFilter).every(Boolean);
+  const selectedLabels = Object.entries(labelFilter).filter(([, v]) => v).map(([k]) => k).join(', ');
+  const activeBadgeLabels = !allLabelsSelected ? `Ähnlichkeit: ${selectedLabels}` : null;
+  const activeBadgePrice = priceMin !== '' || priceMax !== '' ? `Preis: ${priceMin || '0'}–${priceMax || '∞'}` : null;
+  const activeBadgeMerchant = merchantSearch.trim() ? `Händler: ${merchantSearch.trim()}` : null;
+  const anyActiveBadges = Boolean(activeBadgeLabels || activeBadgePrice || activeBadgeMerchant);
+
+  const clearLabels = () => setLabelFilter({ Exact: true, 'Sehr ähnlich': true, Alternative: true });
+  const clearPrice = () => { setPriceMin(''); setPriceMax(''); };
+  const clearMerchant = () => setMerchantSearch('');
+  const clearAllBadges = () => { clearLabels(); clearPrice(); clearMerchant(); };
+
   /* ---------------- Render ---------------- */
+
   const hasImage = Boolean(originalUrl);
 
   return (
@@ -426,9 +456,7 @@ export default function UploadPage() {
                     <input
                       type="checkbox"
                       checked={labelFilter[k]}
-                      onChange={(e) =>
-                        setLabelFilter((prev) => ({ ...prev, [k]: e.target.checked }))
-                      }
+                      onChange={(e) => setLabelFilter((prev) => ({ ...prev, [k]: e.target.checked }))}
                     />
                     {k}
                   </label>
@@ -474,10 +502,7 @@ export default function UploadPage() {
               {/* Reset */}
               <div className="mt-4">
                 <button
-                  onClick={() => {
-                    setLabelFilter({ Exact: true, 'Sehr ähnlich': true, Alternative: true });
-                    setPriceMin(''); setPriceMax(''); setMerchantSearch('');
-                  }}
+                  onClick={() => { setLabelFilter({ Exact: true, 'Sehr ähnlich': true, Alternative: true }); setPriceMin(''); setPriceMax(''); setMerchantSearch(''); }}
                   className="rounded-xl border px-3 py-1.5 text-sm hover:bg-gray-50"
                 >
                   Filter zurücksetzen
@@ -489,24 +514,75 @@ export default function UploadPage() {
           {/* RIGHT CONTENT */}
           <section>
             {/* Toolbar */}
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
               <h2 className="text-lg font-semibold text-gray-900">
-                Ergebnisse <span className="ml-2 text-sm font-normal text-gray-500">({filteredResults.length} von {dedupedResults.length})</span>
+                Ergebnisse{' '}
+                <span className="ml-2 text-sm font-normal text-gray-500">
+                  ({filteredResults.length} von {dedupedResults.length})
+                </span>
               </h2>
-              <div className="flex items-center gap-2">
-                <label htmlFor="sort" className="text-sm text-gray-600">Sortieren:</label>
-                <select
-                  id="sort"
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as SortKey)}
-                  className="rounded-xl border px-3 py-1.5 text-sm"
-                >
-                  <option value="relevance">Relevanz</option>
-                  <option value="priceAsc">Preis: aufsteigend</option>
-                  <option value="priceDesc">Preis: absteigend</option>
-                  <option value="scoreDesc">Ähnlichkeit: hoch → niedrig</option>
-                  <option value="scoreAsc">Ähnlichkeit: niedrig → hoch</option>
-                </select>
+
+              <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-3">
+                {/* Badges */}
+                <div className="flex flex-wrap gap-2">
+                  {activeBadgeLabels && (
+                    <button
+                      onClick={clearLabels}
+                      className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs hover:bg-gray-50"
+                      title="Ähnlichkeit zurücksetzen"
+                    >
+                      {activeBadgeLabels}
+                      <span className="font-semibold">×</span>
+                    </button>
+                  )}
+                  {activeBadgePrice && (
+                    <button
+                      onClick={clearPrice}
+                      className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs hover:bg-gray-50"
+                      title="Preis-Filter entfernen"
+                    >
+                      {activeBadgePrice}
+                      <span className="font-semibold">×</span>
+                    </button>
+                  )}
+                  {activeBadgeMerchant && (
+                    <button
+                      onClick={clearMerchant}
+                      className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs hover:bg-gray-50"
+                      title="Händler-Filter entfernen"
+                    >
+                      {activeBadgeMerchant}
+                      <span className="font-semibold">×</span>
+                    </button>
+                  )}
+                  {anyActiveBadges && (
+                    <button
+                      onClick={clearAllBadges}
+                      className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs hover:bg-gray-50"
+                      title="Alle Filter entfernen"
+                    >
+                      Alle löschen
+                      <span className="font-semibold">×</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Sort */}
+                <div className="flex items-center gap-2">
+                  <label htmlFor="sort" className="text-sm text-gray-600">Sortieren:</label>
+                  <select
+                    id="sort"
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as SortKey)}
+                    className="rounded-xl border px-3 py-1.5 text-sm"
+                  >
+                    <option value="relevance">Relevanz</option>
+                    <option value="priceAsc">Preis: aufsteigend</option>
+                    <option value="priceDesc">Preis: absteigend</option>
+                    <option value="scoreDesc">Ähnlichkeit: hoch → niedrig</option>
+                    <option value="scoreAsc">Ähnlichkeit: niedrig → hoch</option>
+                  </select>
+                </div>
               </div>
             </div>
 
