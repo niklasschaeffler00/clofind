@@ -307,8 +307,8 @@ export default function UploadPage() {
     <>
       {toast.msg && <Toast msg={toast.msg} type={toast.type} />}
 
-      {/* NAVBAR */}
-      <header className="sticky top-0 z-40 border-b bg-white/80 backdrop-blur">
+      {/* NAVBAR – nun solide weiß, kein transparenter Blur (sicher für iOS Safari) */}
+      <header className="sticky top-0 z-40 border-b bg-white">
         <div className="container mx-auto flex h-16 w-full max-w-screen-2xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2 text-lg font-semibold">
             <span>👕</span>
@@ -334,7 +334,7 @@ export default function UploadPage() {
       {!hasImage && (
         <main className="container mx-auto min-h-[calc(100vh-64px)] w-full max-w-screen-2xl px-6 py-12 flex flex-col items-center">
           <section className="w-full max-w-2xl text-center">
-            <h1 className="text-[32px] sm:text-[44px] font-extrabold leading-tight text-black">
+            <h1 className="text-[32px] sm:text-[44px] font-extrabold leading-tight text-gray-900">
               Finde die Kleidung, <span className="bg-orange-200/60 px-1">die du suchst.</span>
             </h1>
             <p className="mt-3 text-[15px] text-gray-600">
@@ -342,7 +342,7 @@ export default function UploadPage() {
             </p>
 
             <div
-              className="mt-8 w-full rounded-2xl border border-dashed border-gray-300 bg-white/70 p-8 shadow-sm hover:shadow transition"
+              className="mt-8 w-full rounded-2xl border border-dashed border-gray-300 bg-white p-8 shadow-sm hover:shadow transition"
               onDragOver={onDragOver}
               onDrop={onDrop}
             >
@@ -375,7 +375,7 @@ export default function UploadPage() {
           {/* LEFT SIDEBAR */}
           <aside className="md:sticky md:top-16">
             {/* Crop-Panel */}
-            <div className="rounded-2xl border bg-white/90 p-4 shadow-sm">
+            <div className="rounded-2xl border bg-white p-4 shadow-sm">
               <div className="text-sm font-medium text-gray-900">Gewählter Bereich</div>
 
               {!editInline ? (
@@ -445,7 +445,7 @@ export default function UploadPage() {
             </div>
 
             {/* Filter-Panel */}
-            <div className="mt-6 rounded-2xl border bg-white/90 p-4 shadow-sm">
+            <div className="mt-6 rounded-2xl border bg-white p-4 shadow-sm">
               <div className="text-sm font-medium text-gray-900">Filter</div>
 
               {/* Ähnlichkeitsgrad */}
@@ -590,7 +590,7 @@ export default function UploadPage() {
                 {Array.from({ length: 8 }).map((_, i) => (
                   <li key={i} className="rounded-2xl border bg-white p-4">
                     <div className="aspect-[4/3] w-full rounded-lg bg-gray-200 animate-pulse" />
-                    <div className="mt-3 h-4 w-2/3 rounded bg-gray-2 00 animate-pulse" />
+                    <div className="mt-3 h-4 w-2/3 rounded bg-gray-200 animate-pulse" />
                     <div className="mt-2 h-3 w-1/2 rounded bg-gray-200 animate-pulse" />
                     <div className="mt-2 h-3 w-1/3 rounded bg-gray-200 animate-pulse" />
                   </li>
