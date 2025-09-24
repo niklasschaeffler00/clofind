@@ -77,13 +77,6 @@ function Toast({ msg, type }: { msg: string; type: 'ok' | 'err' | 'info' }) {
 export default function UploadPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // 💡 Harte Light-Theme-Erzwingung für iOS Safari
-  useEffect(() => {
-    const el = document.documentElement;
-    el.setAttribute('data-theme', 'light');
-    try { (el.style as any).colorScheme = 'light'; } catch {}
-  }, []);
-
   // Bildquelle
   const [file, setFile] = useState<File | null>(null);
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
@@ -216,7 +209,7 @@ export default function UploadPage() {
       setLoading(true);
       setError(null);
       toast.show('Suche läuft …', 'info', 1200);
-      const payload = lastCropBlob ?? file;
+      const payload: Blob | File = lastCropBlob ?? file;
       const data = await runSearchByUpload(payload);
       setResults(Array.isArray(data.results) ? data.results : []);
       setVisibleCount(12);
@@ -311,11 +304,11 @@ export default function UploadPage() {
   const hasImage = Boolean(originalUrl);
 
   return (
-    <div className="bg-white text-gray-900"> {/* Force white bg for entire page */}
+    <>
       {toast.msg && <Toast msg={toast.msg} type={toast.type} />}
 
-      {/* NAVBAR – solide weiß */}
-      <header className="sticky top-0 z-40 border-b bg-white">
+      {/* NAVBAR */}
+      <header className="sticky top-0 z-40 border-b bg-white/80 backdrop-blur">
         <div className="container mx-auto flex h-16 w-full max-w-screen-2xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2 text-lg font-semibold">
             <span>👕</span>
@@ -332,7 +325,7 @@ export default function UploadPage() {
             type="file"
             accept="image/*"
             style={{ display: 'none' }}
-            onChange={(e) => handleFiles(e.target.files)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleFiles(e.target.files)}
           />
         </div>
       </header>
@@ -341,7 +334,7 @@ export default function UploadPage() {
       {!hasImage && (
         <main className="container mx-auto min-h-[calc(100vh-64px)] w-full max-w-screen-2xl px-6 py-12 flex flex-col items-center">
           <section className="w-full max-w-2xl text-center">
-            <h1 className="text-[32px] sm:text-[44px] font-extrabold leading-tight text-gray-900">
+            <h1 className="text-[32px] sm:text-[44px] font-extrabold leading-tight text-black">
               Finde die Kleidung, <span className="bg-orange-200/60 px-1">die du suchst.</span>
             </h1>
             <p className="mt-3 text-[15px] text-gray-600">
@@ -349,7 +342,7 @@ export default function UploadPage() {
             </p>
 
             <div
-              className="mt-8 w-full rounded-2xl border border-dashed border-gray-300 bg-white p-8 shadow-sm hover:shadow transition"
+              className="mt-8 w-full rounded-2xl border border-dashed border-gray-300 bg-white/70 p-8 shadow-sm hover:shadow transition"
               onDragOver={onDragOver}
               onDrop={onDrop}
             >
@@ -382,7 +375,7 @@ export default function UploadPage() {
           {/* LEFT SIDEBAR */}
           <aside className="md:sticky md:top-16">
             {/* Crop-Panel */}
-            <div className="rounded-2xl border bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border bg-white/90 p-4 shadow-sm">
               <div className="text-sm font-medium text-gray-900">Gewählter Bereich</div>
 
               {!editInline ? (
@@ -391,8 +384,6 @@ export default function UploadPage() {
                     <img
                       src={cropPreviewUrl}
                       alt="Gewählter Bereich"
-                      decoding="async"
-                      loading="eager"
                       className="w-full max-h-[300px] md:max-h-[360px] rounded-lg border bg-white object-contain"
                     />
                   ) : (
@@ -420,7 +411,7 @@ export default function UploadPage() {
                   <div className="relative h-[360px] w-full overflow-auto rounded-xl border bg-gray-50">
                     <ReactCrop
                       crop={crop}
-                      onChange={(c) => setCrop(c)}
+                      onChange={(c: Crop) => setCrop(c)}
                       keepSelection
                       minWidth={10}
                       minHeight={10}
@@ -429,8 +420,6 @@ export default function UploadPage() {
                         ref={imgRef}
                         src={originalUrl!}
                         alt="Crop"
-                        decoding="async"
-                        loading="eager"
                         className="mx-auto block h-full max-h-[360px] w-auto max-w-full object-contain"
                       />
                     </ReactCrop>
@@ -456,7 +445,7 @@ export default function UploadPage() {
             </div>
 
             {/* Filter-Panel */}
-            <div className="mt-6 rounded-2xl border bg-white p-4 shadow-sm">
+            <div className="mt-6 rounded-2xl border bg-white/90 p-4 shadow-sm">
               <div className="text-sm font-medium text-gray-900">Filter</div>
 
               {/* Ähnlichkeitsgrad */}
@@ -466,7 +455,9 @@ export default function UploadPage() {
                     <input
                       type="checkbox"
                       checked={labelFilter[k]}
-                      onChange={(e) => setLabelFilter((prev) => ({ ...prev, [k]: e.target.checked }))}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        setLabelFilter((prev) => ({ ...prev, [k]: e.target.checked }))
+                      }
                     />
                     {k}
                   </label>
@@ -482,7 +473,7 @@ export default function UploadPage() {
                     inputMode="decimal"
                     placeholder="min"
                     value={priceMin}
-                    onChange={(e) => setPriceMin(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPriceMin(e.target.value)}
                     className="w-24 rounded-lg border px-2 py-1 text-sm"
                   />
                   <span className="text-gray-500">–</span>
@@ -491,7 +482,7 @@ export default function UploadPage() {
                     inputMode="decimal"
                     placeholder="max"
                     value={priceMax}
-                    onChange={(e) => setPriceMax(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPriceMax(e.target.value)}
                     className="w-24 rounded-lg border px-2 py-1 text-sm"
                   />
                 </div>
@@ -504,7 +495,7 @@ export default function UploadPage() {
                   type="text"
                   placeholder="z. B. Zalando"
                   value={merchantSearch}
-                  onChange={(e) => setMerchantSearch(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMerchantSearch(e.target.value)}
                   className="mt-2 w-full rounded-lg border px-3 py-1.5 text-sm"
                 />
               </div>
@@ -583,7 +574,7 @@ export default function UploadPage() {
                   <select
                     id="sort"
                     value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as SortKey)}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSortBy(e.target.value as SortKey)}
                     className="rounded-xl border px-3 py-1.5 text-sm"
                   >
                     <option value="relevance">Relevanz</option>
@@ -620,8 +611,6 @@ export default function UploadPage() {
                           <img
                             src={r.image_url}
                             alt={r.title ?? `Produkt ${r.product_id}`}
-                            decoding="async"
-                            loading="eager"
                             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                           />
                         ) : null}
@@ -709,13 +698,11 @@ export default function UploadPage() {
           <div className="px-6 py-5">
             {originalUrl ? (
               <div className="relative mx-auto max-h-[70vh] w-full overflow-auto rounded-xl border bg-gray-50">
-                <ReactCrop crop={crop} onChange={(c) => setCrop(c)} keepSelection minWidth={10} minHeight={10}>
+                <ReactCrop crop={crop} onChange={(c: Crop) => setCrop(c)} keepSelection minWidth={10} minHeight={10}>
                   <img
                     ref={imgRef}
                     src={originalUrl}
                     alt="Crop"
-                    decoding="async"
-                    loading="eager"
                     className="mx-auto block h-auto max-h-[70vh] max-w-full object-contain"
                   />
                 </ReactCrop>
@@ -742,6 +729,6 @@ export default function UploadPage() {
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
