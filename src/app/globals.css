@@ -1,13 +1,13 @@
 @import "tailwindcss";
 
-/* === Theme-Variablen === */
+/* === Theme-Variablen (immer light) === */
 :root {
-  --background: #fafafa;
+  --background: #ffffff;  /* konstant hell */
   --foreground: #111827;
 }
-@media (prefers-color-scheme: dark) {
-  :root { --background: #0a0a0a; --foreground: #e5e7eb; }
-}
+
+/* Safari & Co: nicht automatisch abdunkeln */
+html { color-scheme: light; }
 
 /* === Base === */
 html, body {
@@ -19,15 +19,10 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* WICHTIG: kein globales margin/padding-Reset!
-   Nur Box-Sizing setzen, damit Tailwind mx-auto etc. wirken kann. */
+/* Kein globales margin/padding-Reset – nur Box-Sizing */
 *, *::before, *::after { box-sizing: border-box; }
 
 a { color: inherit; text-decoration: none; }
-
-@media (prefers-color-scheme: dark) {
-  html { color-scheme: dark; }
-}
 
 /* Bessere Focus-Visibility */
 :focus-visible { outline: 2px solid #111827; outline-offset: 2px; }
@@ -49,4 +44,3 @@ a { color: inherit; text-decoration: none; }
 
 .ReactCrop__drag-handle--e,
 .ReactCrop__drag-handle--w { width: 12px; height: 28px; }
-

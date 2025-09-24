@@ -77,6 +77,13 @@ function Toast({ msg, type }: { msg: string; type: 'ok' | 'err' | 'info' }) {
 export default function UploadPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // 💡 Harte Light-Theme-Erzwingung für iOS Safari
+  useEffect(() => {
+    const el = document.documentElement;
+    el.setAttribute('data-theme', 'light');
+    try { (el.style as any).colorScheme = 'light'; } catch {}
+  }, []);
+
   // Bildquelle
   const [file, setFile] = useState<File | null>(null);
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
@@ -304,10 +311,10 @@ export default function UploadPage() {
   const hasImage = Boolean(originalUrl);
 
   return (
-    <>
+    <div className="bg-white text-gray-900"> {/* Force white bg for entire page */}
       {toast.msg && <Toast msg={toast.msg} type={toast.type} />}
 
-      {/* NAVBAR – nun solide weiß, kein transparenter Blur (sicher für iOS Safari) */}
+      {/* NAVBAR – solide weiß */}
       <header className="sticky top-0 z-40 border-b bg-white">
         <div className="container mx-auto flex h-16 w-full max-w-screen-2xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2 text-lg font-semibold">
@@ -384,6 +391,8 @@ export default function UploadPage() {
                     <img
                       src={cropPreviewUrl}
                       alt="Gewählter Bereich"
+                      decoding="async"
+                      loading="eager"
                       className="w-full max-h-[300px] md:max-h-[360px] rounded-lg border bg-white object-contain"
                     />
                   ) : (
@@ -420,6 +429,8 @@ export default function UploadPage() {
                         ref={imgRef}
                         src={originalUrl!}
                         alt="Crop"
+                        decoding="async"
+                        loading="eager"
                         className="mx-auto block h-full max-h-[360px] w-auto max-w-full object-contain"
                       />
                     </ReactCrop>
@@ -609,6 +620,8 @@ export default function UploadPage() {
                           <img
                             src={r.image_url}
                             alt={r.title ?? `Produkt ${r.product_id}`}
+                            decoding="async"
+                            loading="eager"
                             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                           />
                         ) : null}
@@ -701,6 +714,8 @@ export default function UploadPage() {
                     ref={imgRef}
                     src={originalUrl}
                     alt="Crop"
+                    decoding="async"
+                    loading="eager"
                     className="mx-auto block h-auto max-h-[70vh] max-w-full object-contain"
                   />
                 </ReactCrop>
@@ -727,6 +742,6 @@ export default function UploadPage() {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
