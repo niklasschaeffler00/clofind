@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable @next/next/no-img-element */
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -45,7 +46,7 @@ const fmtPrice = (value?: number, currency = 'EUR', locale = 'de-DE') =>
     ? new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 2 }).format(value)
     : '';
 
-/* ---------------- Tiny Toaster (ohne ts-ignore) ---------------- */
+/* ---------------- Tiny Toaster ---------------- */
 
 function useToaster() {
   const [msg, setMsg] = useState<string | null>(null);
@@ -261,7 +262,7 @@ export default function UploadPage() {
         arr.sort((a, b) => (b.score ?? 0) - (a.score ?? 0)); break;
       case 'scoreAsc':
         arr.sort((a, b) => (a.score ?? 0) - (b.score ?? 0)); break;
-      default: break; // relevance = Server-Reihenfolge
+      default: break; // relevance
     }
     return arr;
   }, [dedupedResults, sortBy]);
@@ -380,7 +381,6 @@ export default function UploadPage() {
               {!editInline ? (
                 <div className="mt-3">
                   {cropPreviewUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={cropPreviewUrl}
                       alt="Gewählter Bereich"
@@ -416,7 +416,6 @@ export default function UploadPage() {
                       minWidth={10}
                       minHeight={10}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         ref={imgRef}
                         src={originalUrl!}
@@ -591,7 +590,7 @@ export default function UploadPage() {
                 {Array.from({ length: 8 }).map((_, i) => (
                   <li key={i} className="rounded-2xl border bg-white p-4">
                     <div className="aspect-[4/3] w-full rounded-lg bg-gray-200 animate-pulse" />
-                    <div className="mt-3 h-4 w-2/3 rounded bg-gray-200 animate-pulse" />
+                    <div className="mt-3 h-4 w-2/3 rounded bg-gray-2 00 animate-pulse" />
                     <div className="mt-2 h-3 w-1/2 rounded bg-gray-200 animate-pulse" />
                     <div className="mt-2 h-3 w-1/3 rounded bg-gray-200 animate-pulse" />
                   </li>
@@ -607,7 +606,6 @@ export default function UploadPage() {
                     >
                       <div className="aspect-[4/3] w-full overflow-hidden rounded-lg bg-gray-100">
                         {r.image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={r.image_url}
                             alt={r.title ?? `Produkt ${r.product_id}`}
@@ -699,7 +697,6 @@ export default function UploadPage() {
             {originalUrl ? (
               <div className="relative mx-auto max-h-[70vh] w-full overflow-auto rounded-xl border bg-gray-50">
                 <ReactCrop crop={crop} onChange={(c) => setCrop(c)} keepSelection minWidth={10} minHeight={10}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     ref={imgRef}
                     src={originalUrl}
