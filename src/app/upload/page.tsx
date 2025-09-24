@@ -294,7 +294,6 @@ export default function UploadPage() {
   const activeBadgeLabels = !allLabelsSelected ? `Ähnlichkeit: ${selectedLabels}` : null;
   const activeBadgePrice = priceMin !== '' || priceMax !== '' ? `Preis: ${priceMin || '0'}–${priceMax || '∞'}` : null;
   const activeBadgeMerchant = merchantSearch.trim() ? `Händler: ${merchantSearch.trim()}` : null;
-  const anyActiveBadges = Boolean(activeBadgeLabels || activeBadgePrice || activeBadgeMerchant);
 
   const clearLabels = () => setLabelFilter({ Exact: true, 'Sehr ähnlich': true, Alternative: true });
   const clearPrice = () => { setPriceMin(''); setPriceMax(''); };
