@@ -32,6 +32,8 @@ function toPixelCrop(c: Crop, img: HTMLImageElement): PixelCrop {
   return { unit: 'px', x: Math.max(0, x), y: Math.max(0, y), width: Math.max(1, w), height: Math.max(1, h) };
 }
 
+// oben bei den Imports/Types ist nichts weiter nötig
+
 async function getCroppedBlob(img: HTMLImageElement, crop: PixelCrop): Promise<Blob> {
   const dpr = window.devicePixelRatio || 1;
 
@@ -42,13 +44,16 @@ async function getCroppedBlob(img: HTMLImageElement, crop: PixelCrop): Promise<B
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas context not available');
 
-  // Saubere Skalierung
-  // @ts-expect-error vendor props ok
-  ctx.imageSmoothingEnabled = true;
-  // @ts-expect-error vendor props ok
-  ctx.imageSmoothingQuality = 'high';
+  // optional: Smoothing-Props typisiert setzen (ohne any, ohne ts-expect-error)
+  type SmoothCtx = CanvasRenderingContext2D & {
+    imageSmoothingEnabled?: boolean;
+    imageSmoothingQuality?: 'low' | 'medium' | 'high';
+  };
+  const sctx = ctx as SmoothCtx;
+  sctx.imageSmoothingEnabled = true;
+  sctx.imageSmoothingQuality = 'high';
 
-  // In CSS-Pixel zeichnen (DPR berücksichtigen)
+  // In CSS-Pixeln zeichnen (DPR berücksichtigen)
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.drawImage(
     img,
@@ -56,7 +61,9 @@ async function getCroppedBlob(img: HTMLImageElement, crop: PixelCrop): Promise<B
     0, 0, crop.width, crop.height
   );
 
-  return await new Promise<Blob>((res) => canvas.toBlob((b) => res(b as Blob), 'image/jpeg', 0.92));
+  return await new Promise<Blob>((res) =>
+    canvas.toBlob((b) => res(b as Blob), 'image/jpeg', 0.92)
+  );
 }
 
 const fmtPrice = (value?: number, currency = 'EUR', locale = 'de-DE') =>
