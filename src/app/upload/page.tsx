@@ -23,42 +23,66 @@ type SearchResponse = { results?: Hit[] };
 
 /* ---------------- Helpers ---------------- */
 
+/**
+ * Robust: konvertiert ReactCrop-Crop (in % ODER px der gerenderten Bildgröße)
+ * in Pixel relativ zur NATURAL size des Bildes.
+ */
 function toPixelCrop(c: Crop, img: HTMLImageElement): PixelCrop {
-  const nw = img.naturalWidth, nh = img.naturalHeight, pct = c.unit === '%';
-  const x = Math.round((pct ? (c.x ?? 0) / 100 : c.x ?? 0) * (pct ? nw : 1));
-  const y = Math.round((pct ? (c.y ?? 0) / 100 : c.y ?? 0) * (pct ? nh : 1));
-  const w = Math.round((pct ? (c.width ?? 0) / 100 : c.width ?? 0) * (pct ? nw : 1));
-  const h = Math.round((pct ? (c.height ?? 0) / 100 : c.height ?? 0) * (pct ? nh : 1));
-  return { unit: 'px', x: Math.max(0, x), y: Math.max(0, y), width: Math.max(1, w), height: Math.max(1, h) };
+  const naturalW = img.naturalWidth;
+  const naturalH = img.naturalHeight;
+
+  // gerenderte (on-screen) Größe
+  const renderedW = img.width || img.getBoundingClientRect().width || naturalW;
+  const renderedH = img.height || img.getBoundingClientRect().height || naturalH;
+
+  const scaleX = naturalW / renderedW;
+  const scaleY = naturalH / renderedH;
+
+  const isPct = c.unit === '%';
+
+  const rx = c.x ?? 0;
+  const ry = c.y ?? 0;
+  const rw = c.width ?? 0;
+  const rh = c.height ?? 0;
+
+  const x = Math.round(isPct ? (rx / 100) * naturalW : rx * scaleX);
+  const y = Math.round(isPct ? (ry / 100) * naturalH : ry * scaleY);
+  const w = Math.round(isPct ? (rw / 100) * naturalW : rw * scaleX);
+  const h = Math.round(isPct ? (rh / 100) * naturalH : rh * scaleY);
+
+  return {
+    unit: 'px',
+    x: Math.max(0, x),
+    y: Math.max(0, y),
+    width: Math.max(1, w),
+    height: Math.max(1, h),
+  };
 }
 
-// oben bei den Imports/Types ist nichts weiter nötig
-
+/**
+ * Schneidet den Bereich 1:1 aus (Natural-Pixel), ohne DPR-Scaling.
+ * Das ist stabil über Browser/Hosts hinweg und vermeidet "Zoom".
+ */
 async function getCroppedBlob(img: HTMLImageElement, crop: PixelCrop): Promise<Blob> {
-  const dpr = window.devicePixelRatio || 1;
-
   const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(crop.width * dpr));
-  canvas.height = Math.max(1, Math.round(crop.height * dpr));
+  canvas.width = Math.max(1, Math.round(crop.width));
+  canvas.height = Math.max(1, Math.round(crop.height));
 
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas context not available');
 
-  // optional: Smoothing-Props typisiert setzen (ohne any, ohne ts-expect-error)
-  type SmoothCtx = CanvasRenderingContext2D & {
+  // sauberes Sampling
+  const sctx = ctx as CanvasRenderingContext2D & {
     imageSmoothingEnabled?: boolean;
     imageSmoothingQuality?: 'low' | 'medium' | 'high';
   };
-  const sctx = ctx as SmoothCtx;
   sctx.imageSmoothingEnabled = true;
   sctx.imageSmoothingQuality = 'high';
 
-  // In CSS-Pixeln zeichnen (DPR berücksichtigen)
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.drawImage(
     img,
-    crop.x, crop.y, crop.width, crop.height,
-    0, 0, crop.width, crop.height
+    crop.x, crop.y, crop.width, crop.height, // Quelle (Natural-Pixel)
+    0, 0, canvas.width, canvas.height        // Ziel (1:1)
   );
 
   return await new Promise<Blob>((res) =>
@@ -137,7 +161,7 @@ export default function UploadPage() {
   const [cropPreviewUrl, setCropPreviewUrl] = useState<string | null>(null);
   const [lastCropBlob, setLastCropBlob] = useState<Blob | null>(null);
 
-  // NEU: Pixel-Crop für korrektes Seitenverhältnis der Preview
+  // Pixel-Crop für korrektes Seitenverhältnis der Preview
   const [cropPx, setCropPx] = useState<PixelCrop | null>(null);
 
   const toast = useToaster();
@@ -236,7 +260,7 @@ export default function UploadPage() {
       setVisibleCount(12);
 
       const px = toPixelCrop(crop, imgRef.current);
-      setCropPx(px); // NEU: Pixel-Crop für Preview merken
+      setCropPx(px); // für Preview
 
       const cropBlob = await getCroppedBlob(imgRef.current, px);
       const cropUrl = URL.createObjectURL(cropBlob);
