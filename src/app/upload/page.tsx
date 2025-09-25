@@ -170,10 +170,11 @@ export default function UploadPage() {
         let r: Response;
         try {
           r = await fetch(`${base}${p}`, { method: 'POST', body: form, signal: ctrl.signal });
-        } catch (netErr: any) {
-          // Netzwerk/Timeout
-          throw new Error('Netzwerkfehler – bitte überprüfe deine Verbindung und versuche es erneut.');
+        } catch {
+  // Netzwerk/Timeout
+            throw new Error('Netzwerkfehler – bitte überprüfe deine Verbindung und versuche es erneut.');
         }
+
 
         if (r.ok) {
           return r.json();
