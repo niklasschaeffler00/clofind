@@ -156,18 +156,46 @@ export default function UploadPage() {
     form.set('file', blobOrFile);
     form.set('topk', String(40));
 
-    const base = process.env.NEXT_PUBLIC_API_BASE;
-    if (!base) throw new Error('NEXT_PUBLIC_API_BASE fehlt.');
+    const base = process.env.NEXT_PUBLIC_API_BASE ?? process.env.NEXT_PUBLIC_BACKEND_URL;
+    if (!base) throw new Error('Konfiguration fehlt: NEXT_PUBLIC_API_BASE oder NEXT_PUBLIC_BACKEND_URL nicht gesetzt.');
 
-    const paths = ['/search/by-upload', '/search/image'];
-    let lastText = '';
-    for (const p of paths) {
-      const r = await fetch(`${base}${p}`, { method: 'POST', body: form });
-      if (r.ok) return r.json();
-      lastText = await r.text().catch(() => '');
-      if (r.status !== 404) throw new Error(`${r.status} ${r.statusText} – ${lastText}`);
+    // 60s Timeout gegen hängende Requests
+    const ctrl = new AbortController();
+    const to = window.setTimeout(() => ctrl.abort(), 60_000);
+
+    try {
+      const paths = ['/search/by-upload', '/search/image'];
+      let lastText = '';
+      for (const p of paths) {
+        let r: Response;
+        try {
+          r = await fetch(`${base}${p}`, { method: 'POST', body: form, signal: ctrl.signal });
+        } catch (netErr: any) {
+          // Netzwerk/Timeout
+          throw new Error('Netzwerkfehler – bitte überprüfe deine Verbindung und versuche es erneut.');
+        }
+
+        if (r.ok) {
+          return r.json();
+        }
+
+        lastText = await r.text().catch(() => '');
+
+        // 503 = Suche temporär nicht verfügbar → freundliche Meldung
+        if (r.status === 503) {
+          throw new Error('Bildsuche kurz nicht verfügbar – bitte später erneut versuchen.');
+        }
+
+        // Wenn kein 404: harter Fehler mit Status
+        if (r.status !== 404) {
+          throw new Error(`${r.status} ${r.statusText} – ${lastText}`);
+        }
+        // 404 → versuche den nächsten Pfad
+      }
+      throw new Error(`Kein Upload-Endpoint gefunden (404). Letzte Antwort: ${lastText}`);
+    } finally {
+      window.clearTimeout(to);
     }
-    throw new Error(`Kein Upload-Endpoint gefunden (404). Letzte Antwort: ${lastText}`);
   }, []);
 
   const confirmAndSearch = useCallback(async () => {
