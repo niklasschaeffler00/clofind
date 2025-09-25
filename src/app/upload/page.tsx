@@ -33,11 +33,29 @@ function toPixelCrop(c: Crop, img: HTMLImageElement): PixelCrop {
 }
 
 async function getCroppedBlob(img: HTMLImageElement, crop: PixelCrop): Promise<Blob> {
+  const dpr = window.devicePixelRatio || 1;
+
   const canvas = document.createElement('canvas');
-  canvas.width = crop.width; canvas.height = crop.height;
+  canvas.width = Math.max(1, Math.round(crop.width * dpr));
+  canvas.height = Math.max(1, Math.round(crop.height * dpr));
+
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas context not available');
-  ctx.drawImage(img, crop.x, crop.y, crop.width, crop.height, 0, 0, crop.width, crop.height);
+
+  // Saubere Skalierung
+  // @ts-expect-error vendor props ok
+  ctx.imageSmoothingEnabled = true;
+  // @ts-expect-error vendor props ok
+  ctx.imageSmoothingQuality = 'high';
+
+  // In CSS-Pixel zeichnen (DPR berücksichtigen)
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.drawImage(
+    img,
+    crop.x, crop.y, crop.width, crop.height,
+    0, 0, crop.width, crop.height
+  );
+
   return await new Promise<Blob>((res) => canvas.toBlob((b) => res(b as Blob), 'image/jpeg', 0.92));
 }
 
@@ -112,6 +130,9 @@ export default function UploadPage() {
   const [cropPreviewUrl, setCropPreviewUrl] = useState<string | null>(null);
   const [lastCropBlob, setLastCropBlob] = useState<Blob | null>(null);
 
+  // NEU: Pixel-Crop für korrektes Seitenverhältnis der Preview
+  const [cropPx, setCropPx] = useState<PixelCrop | null>(null);
+
   const toast = useToaster();
 
   useEffect(() => {
@@ -141,6 +162,7 @@ export default function UploadPage() {
     setCrop({ unit: '%', x: 12, y: 12, width: 76, height: 76 });
     setLastCropBlob(null);
     setCropPreviewUrl(null);
+    setCropPx(null);
     setLabelFilter({ Exact: true, 'Sehr ähnlich': true, Alternative: true });
     setPriceMin(''); setPriceMax(''); setMerchantSearch('');
     setModalOpen(true);
@@ -171,10 +193,9 @@ export default function UploadPage() {
         try {
           r = await fetch(`${base}${p}`, { method: 'POST', body: form, signal: ctrl.signal });
         } catch {
-  // Netzwerk/Timeout
-            throw new Error('Netzwerkfehler – bitte überprüfe deine Verbindung und versuche es erneut.');
+          // Netzwerk/Timeout
+          throw new Error('Netzwerkfehler – bitte überprüfe deine Verbindung und versuche es erneut.');
         }
-
 
         if (r.ok) {
           return r.json();
@@ -208,6 +229,8 @@ export default function UploadPage() {
       setVisibleCount(12);
 
       const px = toPixelCrop(crop, imgRef.current);
+      setCropPx(px); // NEU: Pixel-Crop für Preview merken
+
       const cropBlob = await getCroppedBlob(imgRef.current, px);
       const cropUrl = URL.createObjectURL(cropBlob);
 
@@ -410,11 +433,20 @@ export default function UploadPage() {
               {!editInline ? (
                 <div className="mt-3">
                   {cropPreviewUrl ? (
-                    <img
-                      src={cropPreviewUrl}
-                      alt="Gewählter Bereich"
-                      className="w-full max-h-[300px] md:max-h-[360px] rounded-lg border bg-white object-contain"
-                    />
+                    <div
+                      className="w-full rounded-lg border bg-white overflow-hidden"
+                      style={{ aspectRatio: cropPx ? `${cropPx.width} / ${cropPx.height}` : '1 / 1' }}
+                    >
+                      <img
+                        src={cropPreviewUrl}
+                        alt="Gewählter Bereich"
+                        className="h-full w-full object-contain"
+                        width={cropPx?.width ?? undefined}
+                        height={cropPx?.height ?? undefined}
+                        decoding="async"
+                        loading="eager"
+                      />
+                    </div>
                   ) : (
                     <div className="h-48 w-full rounded-lg border bg-gray-100" />
                   )}
